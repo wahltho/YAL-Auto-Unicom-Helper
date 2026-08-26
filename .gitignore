@@ -1,0 +1,15 @@
+# Build products outside the committed deployment artifact
+*.d
+*.o
+*.obj
+*.pdb
+*.exe
+*.xpl
+build*/
+dist/
+.DS_Store
+__pycache__/
+*.pyc
+
+# The release workflow packages this deliberately committed Windows artifact.
+!deploy/YAL_AutoUnicomHelper/64/win.xpl
