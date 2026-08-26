@@ -17,6 +17,7 @@ if (WIN32 OR MINGW OR CMAKE_SYSTEM_NAME STREQUAL "Windows" OR
 endif()
 
 add_library(AutoUnicomHelper MODULE
+    src/altitude_audio_guard.cpp
     src/YAL_autounicomhelper.cpp
     src/auto_unicom.cpp
     src/auto_unicom_voice.cpp
@@ -74,6 +75,7 @@ endif()
 include(CTest)
 if (BUILD_TESTING)
     add_executable(auto_unicom_tests
+        src/altitude_audio_guard.cpp
         src/auto_unicom.cpp
         src/auto_unicom_voice.cpp
         src/helper_config.cpp

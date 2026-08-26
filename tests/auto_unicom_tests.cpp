@@ -1,3 +1,4 @@
+#include "altitude_audio_guard.h"
 #include "auto_unicom.h"
 #include "auto_unicom_voice.h"
 #include "helper_config.h"
@@ -7,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <string_view>
 
@@ -194,7 +196,8 @@ void testComposerRetry() {
 void testConfig() {
     HelperConfig defaults;
     expect(defaults.autoUnicomMode == "off" &&
-        defaults.autoUnicomVoiceMode == auto_unicom_voice::DeliveryMode::Off,
+        defaults.autoUnicomVoiceMode == auto_unicom_voice::DeliveryMode::Off &&
+        !defaults.altitudeAudioGuard,
         "shipped config is inert");
     expect(defaults.altitudeCallsign.empty(), "callsign fails closed by default");
 
@@ -204,6 +207,8 @@ void testConfig() {
         "AUTO_UNICOM_VOICE_MODE=local\n"
         "AUTO_UNICOM_VOICE_SAPI_RATE=15\n"
         "AUTO_UNICOM_VOICE_VOLUME=-2\n"
+        "ALTITUDE_AUDIO_GUARD=1\n"
+        "ALTITUDE_AUDIO_INPUT_MATCH= Voicemeeter Out B1 \n"
         "PTT_KEY=left_ctrl\n"
         "FUTURE_KEY=ignored\n");
     HelperConfig config;
@@ -214,6 +219,9 @@ void testConfig() {
         "local voice parsed");
     expect(config.autoUnicomVoiceSapiRate == 10 && config.autoUnicomVoiceVolume == 0,
         "voice controls clamped");
+    expect(config.altitudeAudioGuard &&
+        config.altitudeAudioInputMatch == "Voicemeeter Out B1",
+        "audio guard config parsed and normalized");
     expect(config.pttKey == "LEFTCTRL", "PTT key normalized");
     expect(result.unknownKeys.size() == 1 && result.unknownKeys.front() == "FUTURE_KEY",
         "unknown key reported but tolerated");
@@ -236,6 +244,61 @@ void testConfig() {
         "text off also disables voice");
 }
 
+void testAltitudeAudioGuard() {
+    const std::string current =
+        "[GENERAL]\nVALUE=keep\n\n[AUDIO]\nINPUT=old-input\nEXTRA=keep\n"
+        "OUTPUT=old-output\n\n[NETWORK]\nSERVER=keep\n";
+    bool changed = false;
+    const std::string updated = altitude_audio_guard::updateConfigText(
+        current, "new-input", "new-output", changed);
+    expect(changed, "audio guard reports changed audio endpoints");
+    expect(updated.find("[GENERAL]\nVALUE=keep") != std::string::npos &&
+        updated.find("INPUT=new-input") != std::string::npos &&
+        updated.find("OUTPUT=new-output") != std::string::npos &&
+        updated.find("EXTRA=keep") != std::string::npos &&
+        updated.find("[NETWORK]\nSERVER=keep") != std::string::npos,
+        "audio guard changes only INPUT and OUTPUT");
+
+    bool secondChange = true;
+    const std::string unchanged = altitude_audio_guard::updateConfigText(
+        updated, "new-input", "new-output", secondChange);
+    expect(!secondChange && unchanged == updated, "audio guard update is idempotent");
+
+    bool added = false;
+    const std::string withAudio = altitude_audio_guard::updateConfigText(
+        "[GENERAL]\nVALUE=keep\n", "capture-id", "", added);
+    expect(added && withAudio.find("[AUDIO]\nINPUT=capture-id\n") != std::string::npos &&
+        withAudio.find("OUTPUT=") == std::string::npos,
+        "audio guard creates missing AUDIO section without empty keys");
+
+    expect(altitude_audio_guard::normalizeDeviceId(true, "{device-id}") ==
+        "\\\\?\\SWD#MMDEVAPI#{device-id}#"
+        "{2eef81be-33fa-4800-9670-1cd474972c3f}",
+        "Altitude capture endpoint ID normalized");
+
+    TempConfigFile altitudeFile("[GENERAL]\nVALUE=keep\n");
+    altitude_audio_guard::Config config{};
+    config.enabled = true;
+    config.inputDeviceId = "{capture-id}";
+    config.outputDeviceId = "{render-id}";
+    auto result = altitude_audio_guard::ensureConfig(
+        altitudeFile.path, config, false, {});
+    expect(result.status == altitude_audio_guard::Status::Updated,
+        "audio guard writes an explicitly configured endpoint pair");
+    std::ifstream input(altitudeFile.path);
+    const std::string written{
+        std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    expect(written.find("[GENERAL]\nVALUE=keep") != std::string::npos &&
+        written.find("[AUDIO]\nINPUT=\\\\?\\SWD#MMDEVAPI#{capture-id}") !=
+            std::string::npos &&
+        written.find("OUTPUT=\\\\?\\SWD#MMDEVAPI#{render-id}") !=
+            std::string::npos,
+        "audio guard persists endpoints without losing unrelated settings");
+    result = altitude_audio_guard::ensureConfig(altitudeFile.path, config, false, {});
+    expect(result.status == altitude_audio_guard::Status::Unchanged,
+        "audio guard filesystem update is idempotent");
+}
+
 void testSuccessChimePolicy() {
     expect(auto_unicom::shouldPlaySuccessChime(auto_unicom::ResultCode::SubmittedVisible),
         "visible submission permits chime");
@@ -254,6 +317,7 @@ int main() {
     testVoiceValidationAndReceiveGuard();
     testComposerRetry();
     testConfig();
+    testAltitudeAudioGuard();
     testSuccessChimePolicy();
     if (failures != 0) {
         std::cerr << failures << " test(s) failed\n";

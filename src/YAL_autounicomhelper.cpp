@@ -1,3 +1,4 @@
+#include "altitude_audio_guard.h"
 #include "auto_unicom.h"
 #include "auto_unicom_voice.h"
 #include "helper_config.h"
@@ -50,8 +51,10 @@ HelperConfig g_config;
 std::filesystem::path g_pluginRoot;
 std::filesystem::path g_configPath;
 std::filesystem::path g_logPath;
+std::filesystem::path g_altitudeConfigPath;
 std::ofstream g_log;
 std::mutex g_logMutex;
+std::chrono::steady_clock::time_point g_altitudeAudioGuardNextCheck{};
 
 std::atomic<bool> g_pluginEnabled{false};
 std::atomic<bool> g_apiReady{false};
@@ -171,6 +174,16 @@ auto_unicom::Mode configuredMode(const HelperConfig& config) {
         return auto_unicom::Mode::DryRun;
     }
     return auto_unicom::Mode::Off;
+}
+
+altitude_audio_guard::Config configuredAltitudeAudioGuard(const HelperConfig& config) {
+    return {
+        config.altitudeAudioGuard,
+        config.altitudeAudioInput,
+        config.altitudeAudioOutput,
+        config.altitudeAudioInputMatch,
+        config.altitudeAudioOutputMatch,
+    };
 }
 
 auto_unicom_voice::Config configuredRadioVoice(const HelperConfig& config) {
@@ -411,6 +424,28 @@ void updateGateState() {
         ++g_gateGeneration;
     }
     g_gateCv.notify_all();
+}
+
+void ensureAltitudeAudioConfig(bool verbose) {
+    altitude_audio_guard::ensureConfig(
+        g_altitudeConfigPath,
+        configuredAltitudeAudioGuard(g_config),
+        verbose,
+        [](const std::string& line) { logLine(line); });
+}
+
+void maybeEnsureAltitudeAudioConfig() {
+    if (!g_config.altitudeAudioGuard) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (g_altitudeAudioGuardNextCheck != std::chrono::steady_clock::time_point{} &&
+        now < g_altitudeAudioGuardNextCheck) {
+        return;
+    }
+    g_altitudeAudioGuardNextCheck =
+        now + std::chrono::seconds(altitude_audio_guard::kCheckIntervalSeconds);
+    ensureAltitudeAudioConfig(false);
 }
 
 auto_unicom::GateSnapshot cachedGate() {
@@ -878,6 +913,7 @@ void processConfigReload() {
         resetPcmSound(g_chimeSound);
     }
     g_config = std::move(candidate);
+    g_altitudeAudioGuardNextCheck = {};
     g_pendingControlModes.reset();
     g_voiceState.store(static_cast<int>(
         g_config.autoUnicomVoiceMode == auto_unicom_voice::DeliveryMode::Off
@@ -893,6 +929,7 @@ void processConfigReload() {
     for (const auto& key : result.unknownKeys) {
         logLine("Config: ignored unknown key " + key);
     }
+    ensureAltitudeAudioConfig(true);
 }
 
 void stopWorker(const char* reason) {
@@ -1233,6 +1270,7 @@ void destroyMenus() {
 }
 
 float flightLoopCallback(float, float, int, void*) {
+    maybeEnsureAltitudeAudioConfig();
     bindRuntimeDataRefs();
     updateGateState();
     processPendingRequest();
@@ -1279,10 +1317,12 @@ PLUGIN_API int XPluginStart(char* outName, char* outSignature, char* outDescript
     const auto root = xPlaneRoot();
     g_configPath = root / "Output" / "preferences" / "YAL_AutoUnicomHelper.prf";
     g_logPath = root / "Output" / "preferences" / "YAL_AutoUnicomHelper.log";
+    g_altitudeConfigPath = root / "IVAO_Pilot_Client.conf";
     g_log.open(g_logPath, std::ios::out | std::ios::app);
     logLine(std::string("Starting version ") + kPluginVersion);
     logLine("Plugin root: " + g_pluginRoot.string());
     loadInitialConfig();
+    ensureAltitudeAudioConfig(true);
 
     g_drAudioPanelOut = XPLMFindDataRef("sim/cockpit/switches/audio_panel_out");
     g_drCom1Frequency833 = XPLMFindDataRef(

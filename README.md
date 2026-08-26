@@ -56,6 +56,20 @@ input.
 
 See `YAL_AutoUnicomHelper.prf.example` for every supported setting.
 
+## Altitude audio guard
+
+The optional `ALTITUDE_AUDIO_GUARD` keeps the persisted `INPUT` and `OUTPUT`
+entries in X-Plane's `IVAO_Pilot_Client.conf` on explicitly configured Windows
+audio endpoints. Friendly-name matches must resolve to exactly one active
+capture or render device; missing and ambiguous matches fail without changing
+the Altitude file. The guard is disabled by default and checks every 60 seconds
+after it is enabled.
+
+For the proven VoiceMeeter route, Altitude input matches `Voicemeeter Out B1`
+and radio TTS output matches `Voicemeeter Input`. The complete setup and local
+proof sequence are documented in
+`Documentation/Auto-UNICOM-Voice_Einrichtungsanleitung.md`.
+
 ## API
 
 The public API is version 3 under `wahltho/autounicom/*`. It preserves the

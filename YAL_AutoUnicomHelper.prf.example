@@ -13,6 +13,14 @@ AUTO_UNICOM_FINAL_GATE_TIMEOUT_MS=2500
 UIA_RETRY_MS=100
 DEBUG_UIA=0
 
+# Optional guard for Altitude's persisted microphone and output endpoints.
+# Enable only after both MATCH values resolve uniquely on this computer.
+ALTITUDE_AUDIO_GUARD=0
+ALTITUDE_AUDIO_INPUT=
+ALTITUDE_AUDIO_OUTPUT=
+ALTITUDE_AUDIO_INPUT_MATCH=
+ALTITUDE_AUDIO_OUTPUT_MATCH=
+
 AUTO_UNICOM_CHIME=1
 AUTO_UNICOM_CHIME_FILE=resources/auto_unicom_chime.wav
 

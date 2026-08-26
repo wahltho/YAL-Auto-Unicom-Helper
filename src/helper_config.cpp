@@ -113,6 +113,11 @@ void normalizeConfig(HelperConfig& config) {
         kFinalGateTimeoutMaxMs);
     config.uiaRetryMs = clampValue(config.uiaRetryMs, kUiaRetryMinMs, kUiaRetryMaxMs);
 
+    config.altitudeAudioInput = trim(config.altitudeAudioInput);
+    config.altitudeAudioOutput = trim(config.altitudeAudioOutput);
+    config.altitudeAudioInputMatch = trim(config.altitudeAudioInputMatch);
+    config.altitudeAudioOutputMatch = trim(config.altitudeAudioOutputMatch);
+
     config.autoUnicomChimeFile = trim(config.autoUnicomChimeFile);
     if (config.autoUnicomChimeFile.empty()) {
         config.autoUnicomChimeFile = "resources/auto_unicom_chime.wav";
@@ -205,6 +210,16 @@ ConfigLoadResult loadHelperConfigFile(
                 candidate.uiaRetryMs = parseInt(value);
             } else if (key == "DEBUG_UIA") {
                 candidate.debugUia = parseBool(value);
+            } else if (key == "ALTITUDE_AUDIO_GUARD") {
+                candidate.altitudeAudioGuard = parseBool(value);
+            } else if (key == "ALTITUDE_AUDIO_INPUT") {
+                candidate.altitudeAudioInput = value;
+            } else if (key == "ALTITUDE_AUDIO_OUTPUT") {
+                candidate.altitudeAudioOutput = value;
+            } else if (key == "ALTITUDE_AUDIO_INPUT_MATCH") {
+                candidate.altitudeAudioInputMatch = value;
+            } else if (key == "ALTITUDE_AUDIO_OUTPUT_MATCH") {
+                candidate.altitudeAudioOutputMatch = value;
             } else if (key == "AUTO_UNICOM_CHIME") {
                 candidate.autoUnicomChime = parseBool(value);
             } else if (key == "AUTO_UNICOM_CHIME_FILE") {
@@ -292,6 +307,11 @@ bool saveHelperConfigFile(
     out << "AUTO_UNICOM_FINAL_GATE_TIMEOUT_MS=" << config.autoUnicomFinalGateTimeoutMs << "\n";
     out << "UIA_RETRY_MS=" << config.uiaRetryMs << "\n";
     out << "DEBUG_UIA=" << (config.debugUia ? 1 : 0) << "\n";
+    out << "ALTITUDE_AUDIO_GUARD=" << (config.altitudeAudioGuard ? 1 : 0) << "\n";
+    out << "ALTITUDE_AUDIO_INPUT=" << config.altitudeAudioInput << "\n";
+    out << "ALTITUDE_AUDIO_OUTPUT=" << config.altitudeAudioOutput << "\n";
+    out << "ALTITUDE_AUDIO_INPUT_MATCH=" << config.altitudeAudioInputMatch << "\n";
+    out << "ALTITUDE_AUDIO_OUTPUT_MATCH=" << config.altitudeAudioOutputMatch << "\n";
     out << "AUTO_UNICOM_CHIME=" << (config.autoUnicomChime ? 1 : 0) << "\n";
     out << "AUTO_UNICOM_CHIME_FILE=" << config.autoUnicomChimeFile << "\n";
     out << "AUTO_UNICOM_VOICE_MODE="
@@ -340,6 +360,11 @@ std::vector<std::string> diffHelperConfig(
     CONFIG_DIFF(autoUnicomFinalGateTimeoutMs, "AUTO_UNICOM_FINAL_GATE_TIMEOUT_MS");
     CONFIG_DIFF(uiaRetryMs, "UIA_RETRY_MS");
     CONFIG_DIFF(debugUia, "DEBUG_UIA");
+    CONFIG_DIFF(altitudeAudioGuard, "ALTITUDE_AUDIO_GUARD");
+    CONFIG_DIFF(altitudeAudioInput, "ALTITUDE_AUDIO_INPUT");
+    CONFIG_DIFF(altitudeAudioOutput, "ALTITUDE_AUDIO_OUTPUT");
+    CONFIG_DIFF(altitudeAudioInputMatch, "ALTITUDE_AUDIO_INPUT_MATCH");
+    CONFIG_DIFF(altitudeAudioOutputMatch, "ALTITUDE_AUDIO_OUTPUT_MATCH");
     CONFIG_DIFF(autoUnicomChime, "AUTO_UNICOM_CHIME");
     CONFIG_DIFF(autoUnicomChimeFile, "AUTO_UNICOM_CHIME_FILE");
     CONFIG_DIFF(autoUnicomVoiceMode, "AUTO_UNICOM_VOICE_MODE");

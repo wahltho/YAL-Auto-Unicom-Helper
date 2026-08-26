@@ -6,11 +6,14 @@
 4. Set `AUTO_UNICOM_MODE=dry_run`, reload config and verify YAL receives
    `PREVIEW_READY` without any Altitude UI change.
 5. Select `LOCAL READBACK`, run `Voice Audio Test` and verify no PTT occurs.
-6. For productive text, connect online, select the transmit COM and tune
+6. If the audio guard will be used, configure unique input/output matches,
+   enable it, reload config and verify the expected endpoint IDs under `[AUDIO]`
+   in `IVAO_Pilot_Client.conf` without changing unrelated sections.
+7. For productive text, connect online, select the transmit COM and tune
    122.800 before setting `AUTO_UNICOM_MODE=send`.
-7. Submit one controlled YAL request and require the exact text to appear in
+8. Submit one controlled YAL request and require the exact text to appear in
    Altitude history with result `SUBMITTED_VISIBLE`.
-8. Configure and test radio routing only after all previous cases pass. Verify
+9. Configure and test radio routing only after all previous cases pass. Verify
    RX activity delays PTT and that changing frequency or going offline prevents
    transmission.
 

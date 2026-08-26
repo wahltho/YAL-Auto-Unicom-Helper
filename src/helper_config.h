@@ -19,6 +19,12 @@ struct HelperConfig {
     int uiaRetryMs = 100;
     bool debugUia = false;
 
+    bool altitudeAudioGuard = false;
+    std::string altitudeAudioInput;
+    std::string altitudeAudioOutput;
+    std::string altitudeAudioInputMatch;
+    std::string altitudeAudioOutputMatch;
+
     bool autoUnicomChime = true;
     std::string autoUnicomChimeFile = "resources/auto_unicom_chime.wav";
 

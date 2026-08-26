@@ -35,6 +35,10 @@ Set `ALTITUDE_CALLSIGN` to the exact callsign used in Altitude. Leave
 
 After editing the preference file, choose `Reload Config` from the plugin menu.
 
+When using radio voice, configure Altitude's microphone route manually first.
+The optional `ALTITUDE_AUDIO_GUARD` can then preserve the verified endpoint IDs;
+it is intentionally disabled in a fresh installation.
+
 ## Uninstall
 
 Remove `Resources/plugins/YAL_AutoUnicomHelper`. The preference and log files
