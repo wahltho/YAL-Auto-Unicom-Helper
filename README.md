@@ -68,7 +68,7 @@ after it is enabled.
 For the proven VoiceMeeter route, Altitude input matches `Voicemeeter Out B1`
 and radio TTS output matches `Voicemeeter Input`. The complete setup and local
 proof sequence are documented in
-`Documentation/Auto-UNICOM-Voice_Einrichtungsanleitung.md`.
+`Documentation/Auto-UNICOM-Voice-Setup-Guide.md`.
 
 ## API
 

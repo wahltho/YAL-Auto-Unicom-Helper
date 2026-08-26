@@ -52,7 +52,7 @@ class ReleasePackageTests(unittest.TestCase):
         (self.root / "Documentation/YAL_Auto_Unicom_Helper_API.md").write_text(
             "api\n", encoding="utf-8"
         )
-        (self.root / "Documentation/Auto-UNICOM-Voice_Einrichtungsanleitung.md").write_text(
+        (self.root / "Documentation/Auto-UNICOM-Voice-Setup-Guide.md").write_text(
             "voice setup\n", encoding="utf-8"
         )
         (self.root / "Documentation/ACCEPTANCE_TEST.md").write_text(
