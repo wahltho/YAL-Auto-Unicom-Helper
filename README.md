@@ -1,5 +1,8 @@
 # YAL Auto-Unicom Helper
 
+**IVAO only:** This plugin requires IVAO Altitude and does not support VATSIM,
+PilotEdge, or other online networks.
+
 YAL Auto-Unicom Helper is a Windows X-Plane 12 companion plugin for YAL. YAL
 prepares complete Auto-Unicom text and voice payloads; this helper validates the
 live IVAO context and submits them through IVAO Altitude's normal message UI.
