@@ -9,21 +9,18 @@
 
 Set `XPLANE_SDK_PATH` to the SDK root containing `CHeaders`.
 
-Build directories are kept outside the source repository under:
+The bundled presets keep build directories outside the source repository under:
 
 ```text
-/Users/wahltho/dev/YAL Auto-Unicom Helper/
+../YAL-Auto-Unicom-Helper-build/
 ```
 
 ## Native tests
 
 ```bash
-cmake -S . -B "/Users/wahltho/dev/YAL Auto-Unicom Helper/build-mac" \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DXPLANE_SDK_PATH="$XPLANE_SDK_PATH"
-cmake --build "/Users/wahltho/dev/YAL Auto-Unicom Helper/build-mac"
-ctest --test-dir "/Users/wahltho/dev/YAL Auto-Unicom Helper/build-mac" --output-on-failure
+cmake --preset build-mac
+cmake --build --preset build-mac
+ctest --test-dir ../YAL-Auto-Unicom-Helper-build/build-mac --output-on-failure
 ```
 
 The macOS plugin build is a compile check only. Productive UIA, SAPI, WASAPI

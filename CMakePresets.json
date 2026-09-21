@@ -9,7 +9,7 @@
     {
       "name": "release-base",
       "hidden": true,
-      "binaryDir": "/Users/wahltho/dev/YAL Auto-Unicom Helper/${presetName}",
+      "binaryDir": "${sourceDir}/../YAL-Auto-Unicom-Helper-build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "XPLANE_SDK_PATH": "$env{XPLANE_SDK_PATH}"
