@@ -4,6 +4,7 @@
 #include "helper_config.h"
 #include "pilotui_message_sender.h"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -193,11 +194,43 @@ void testComposerRetry() {
         "uncertain post-submit result never retried");
 }
 
+void testComposerOwnershipRecoveryPolicy() {
+    using pilotui_message::ComposerOwnershipMatch;
+    pilotui_message::ComposerOwnershipTracker tracker;
+
+    expect(!tracker.active() && !tracker.recoveryDue(20000, 15000),
+        "inactive composer ownership is never recoverable");
+    tracker.beginWrite("BER123 departing runway 23", 1000);
+    expect(tracker.active(), "composer ownership starts before write");
+    expect(!tracker.recoveryDue(15999, 15000) && tracker.recoveryDue(16000, 15000),
+        "composer ownership becomes stale at configured deadline");
+    expect(tracker.classify("") == ComposerOwnershipMatch::Empty,
+        "empty composer releases ownership");
+    expect(tracker.classify("BER123 departing runway 23") == ComposerOwnershipMatch::Exact,
+        "exact owned composer is recoverable");
+    expect(tracker.classify("BER123 depart") == ComposerOwnershipMatch::Prefix,
+        "interrupted write prefix is recoverable");
+    expect(tracker.classify("manual message") == ComposerOwnershipMatch::Foreign,
+        "foreign composer text is preserved");
+
+    tracker.markComposed();
+    expect(tracker.classify("BER123 depart") == ComposerOwnershipMatch::Foreign,
+        "pilot edit after complete compose is preserved");
+    expect(tracker.classify("BER123 departing runway 23") == ComposerOwnershipMatch::Exact,
+        "complete owned draft remains recoverable");
+
+    tracker.clear();
+    expect(!tracker.active() &&
+        tracker.classify("BER123 depart") == ComposerOwnershipMatch::Foreign,
+        "cleared ownership never claims old text");
+}
+
 void testConfig() {
     HelperConfig defaults;
     expect(defaults.autoUnicomMode == "off" &&
         defaults.autoUnicomVoiceMode == auto_unicom_voice::DeliveryMode::Off &&
-        !defaults.altitudeAudioGuard,
+        !defaults.altitudeAudioGuard &&
+        defaults.autoUnicomComposerStaleMs == 15000,
         "shipped config is inert");
     expect(defaults.altitudeCallsign.empty(), "callsign fails closed by default");
 
@@ -205,6 +238,7 @@ void testConfig() {
         "AUTO_UNICOM_MODE=send\n"
         "ALTITUDE_CALLSIGN= dlh3210 \n"
         "AUTO_UNICOM_VOICE_MODE=local\n"
+        "AUTO_UNICOM_COMPOSER_STALE_MS=1000\n"
         "AUTO_UNICOM_VOICE_SAPI_RATE=15\n"
         "AUTO_UNICOM_VOICE_VOLUME=-2\n"
         "ALTITUDE_AUDIO_GUARD=1\n"
@@ -217,6 +251,8 @@ void testConfig() {
     expect(config.altitudeCallsign == "DLH3210", "callsign normalized");
     expect(config.autoUnicomVoiceMode == auto_unicom_voice::DeliveryMode::LocalReadback,
         "local voice parsed");
+    expect(config.autoUnicomComposerStaleMs == 5000,
+        "composer stale timeout clamped");
     expect(config.autoUnicomVoiceSapiRate == 10 && config.autoUnicomVoiceVolume == 0,
         "voice controls clamped");
     expect(config.altitudeAudioGuard &&
@@ -225,6 +261,13 @@ void testConfig() {
     expect(config.pttKey == "LEFTCTRL", "PTT key normalized");
     expect(result.unknownKeys.size() == 1 && result.unknownKeys.front() == "FUTURE_KEY",
         "unknown key reported but tolerated");
+
+    HelperConfig changed = config;
+    changed.autoUnicomComposerStaleMs = 30000;
+    const auto differences = diffHelperConfig(config, changed);
+    expect(std::find(differences.begin(), differences.end(),
+        "AUTO_UNICOM_COMPOSER_STALE_MS") != differences.end(),
+        "composer stale timeout participates in config reload diff");
 
     TempConfigFile invalid("AUTO_UNICOM_MODE=maybe\n");
     HelperConfig untouched;
@@ -316,6 +359,7 @@ int main() {
     testMailbox();
     testVoiceValidationAndReceiveGuard();
     testComposerRetry();
+    testComposerOwnershipRecoveryPolicy();
     testConfig();
     testAltitudeAudioGuard();
     testSuccessChimePolicy();

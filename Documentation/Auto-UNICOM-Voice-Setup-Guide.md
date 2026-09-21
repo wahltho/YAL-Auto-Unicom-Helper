@@ -6,6 +6,13 @@ This guide configures a safe audio path for sending YAL Auto-UNICOM messages
 as both text and speech through IVAO Altitude. The normal headset microphone
 remains available for manual radio communication.
 
+YAL 4.8b1 or newer is required. Earlier YAL versions do not support the
+standalone YAL Auto-Unicom Helper provider.
+
+This is the detailed audio companion to `USER_MANUAL.md`. Complete the YAL and
+Helper installation and text-only commissioning in that manual first. The
+Helper does not operate without YAL.
+
 The setup follows one strict rule: do not enable automatic radio voice until
 the complete audio path has been proven locally.
 
@@ -85,7 +92,6 @@ In short: Helper TTS enters **Voicemeeter Input**, while Altitude records
 - Windows 10 or Windows 11
 - X-Plane 12 with YAL and YAL Auto-Unicom Helper
 - IVAO Altitude
-- DataRefTool for running the local audio-test command
 - A working headset with identifiable capture and playback endpoints
 - An installed Windows SAPI voice, for example `Microsoft David Desktop`
 - Administrator rights for the initial virtual-audio driver installation
@@ -285,6 +291,7 @@ AUTO_UNICOM_MODE=off
 ALTITUDE_CALLSIGN=DLH3210
 AUTO_UNICOM_FREQUENCY_KHZ=122800
 AUTO_UNICOM_CONFIRM_TIMEOUT_MS=5000
+AUTO_UNICOM_COMPOSER_STALE_MS=15000
 AUTO_UNICOM_GATE_MAX_AGE_MS=2500
 AUTO_UNICOM_FINAL_GATE_TIMEOUT_MS=2500
 AUTO_UNICOM_MESSAGE_FIELD_NAME=Message
@@ -352,8 +359,8 @@ AUTOFUNCTIONS 0
 VOICEADVICEONLY 1
 ```
 
-YAL must discover API version 3, a ready provider, and a non-empty effective
-callsign. The public provider namespace is `wahltho/autounicom/*`.
+YAL must report that the Auto-Unicom transport is connected, and the Helper
+callsign must exactly match the current Altitude callsign.
 
 ## 10. Configure Altitude
 
@@ -389,10 +396,10 @@ back to another input.
 
 1. Confirm `AUTO_UNICOM_MODE=off` and `AUTO_UNICOM_VOICE_MODE=local`.
 2. Run `Reload Config`.
-3. Execute this X-Plane command in DataRefTool:
+3. Select this Helper menu item:
 
 ```text
-yal_autounicomhelper/autounicom_voice_audio_test
+Plugins > YAL Auto-Unicom Helper > Voice Audio Test
 ```
 
 4. Verify that VoiceMeeter `VIRTUAL INPUT` and B1 meters move while A remains
@@ -436,21 +443,22 @@ Tests B and C must both work through the same Altitude input.
 Any desktop or Altitude output on B1 is a transmit-loop risk. Correct the
 routing before continuing.
 
-## 13. Prove API readiness
+## 13. Prove Helper readiness
 
-Before a productive YAL request, DataRefTool must show at least:
+Before a productive YAL request, confirm all of these conditions:
 
-```text
-wahltho/autounicom/api_version       = 3
-wahltho/autounicom/ready             = 1
-wahltho/autounicom/mode              = 2
-wahltho/autounicom/transport_state   = 5
-wahltho/autounicom/effective_callsign is not empty
-```
+- the current official YAL release includes Auto-Unicom Helper support;
+- YAL Auto-Unicom is enabled;
+- YAL Auto Functions or Voice Advice Only is active;
+- `Discover Altitude UI` reports `DISCOVERY_OK`;
+- `ALTITUDE_CALLSIGN` exactly matches the active Altitude callsign;
+- Altitude is online;
+- the selected transmit COM is tuned to `122.800` MHz;
+- the Helper is in `send` mode;
+- the Altitude message composer is empty.
 
-`ready=1` alone is insufficient. YAL submits only when the provider is
-compatible, send mode is active, the effective callsign exists, and transport
-state is `READY`.
+The text-only controlled test in `USER_MANUAL.md` must already have produced
+`SUBMITTED_VISIBLE` before radio voice is enabled.
 
 ## 14. Enable radio mode
 
@@ -617,8 +625,8 @@ Check:
 
 - `IVAOAUTOUNICOM 1`
 - `AUTOFUNCTIONS 1` or `VOICEADVICEONLY 1`
-- API version 3 and `ready=1`
-- `wahltho/autounicom/effective_callsign` matches the Altitude callsign
+- a current YAL release with Auto-Unicom Helper support
+- the Helper callsign matches the Altitude callsign
 - No open request or session-level transport block remains
 
 ### Text may have been sent but confirmation is missing
@@ -638,7 +646,7 @@ Repeat the local proof after:
 - VoiceMeeter installation or update
 - Altitude update
 - YAL Auto-Unicom Helper update
-- YAL Auto-UNICOM API update
+- YAL Auto-Unicom integration update
 - Windows feature update
 - Headset USB-port or device-name change
 - Sample-rate change
@@ -696,6 +704,7 @@ ALTITUDE_AUDIO_OUTPUT_MATCH=TCA YOKE BOEING
 AUTO_UNICOM_MODE=send
 ALTITUDE_CALLSIGN=DLH3210
 AUTO_UNICOM_FREQUENCY_KHZ=122800
+AUTO_UNICOM_COMPOSER_STALE_MS=15000
 AUTO_UNICOM_VOICE_MODE=radio
 AUTO_UNICOM_VOICE_OUTPUT=
 AUTO_UNICOM_VOICE_OUTPUT_MATCH=VoiceMeeter Input
@@ -735,7 +744,8 @@ The setup is complete only when every item is true:
 - The audio guard confirms both unique endpoint matches.
 - TTS and the hardware microphone both pass Altitude's local test.
 - No PTT occurs during local tests.
-- API version 3 reports `READY` with the correct effective callsign.
+- The text-only controlled test reports `SUBMITTED_VISIBLE` with the correct
+  Altitude callsign.
 - A controlled live test returns `result_code=21 SUBMITTED_VISIBLE`.
 - Voice returns `voice_result_code=20 TRANSMITTED`.
 - PTT releases after every transmission.

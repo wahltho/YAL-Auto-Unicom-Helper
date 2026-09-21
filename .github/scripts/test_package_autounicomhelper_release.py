@@ -49,14 +49,11 @@ class ReleasePackageTests(unittest.TestCase):
         (self.root / "deploy/YAL_AutoUnicomHelper/resources/auto_unicom_chime.wav").write_bytes(
             b"wave\n"
         )
-        (self.root / "Documentation/YAL_Auto_Unicom_Helper_API.md").write_text(
-            "api\n", encoding="utf-8"
+        (self.root / "Documentation/USER_MANUAL.md").write_text(
+            "user manual\n", encoding="utf-8"
         )
         (self.root / "Documentation/Auto-UNICOM-Voice-Setup-Guide.md").write_text(
             "voice setup\n", encoding="utf-8"
-        )
-        (self.root / "Documentation/ACCEPTANCE_TEST.md").write_text(
-            "acceptance\n", encoding="utf-8"
         )
         (self.root / "YAL_AutoUnicomHelper.prf.example").write_text(
             "AUTO_UNICOM_MODE=off\n", encoding="utf-8"
@@ -75,6 +72,11 @@ class ReleasePackageTests(unittest.TestCase):
         self.assertEqual("beta", manifest["channel"])
         self.assertEqual("Resources/plugins/YAL_AutoUnicomHelper", manifest["targetPath"])
         self.assertEqual(["zibo-737ng", "levelup-737ng"], manifest["supportedProducts"])
+        self.assertEqual(["win-x64"], manifest["supportedPlatforms"])
+        self.assertEqual(
+            [{"packageId": "wahltho.yal", "minimumVersion": "4.8b1"}],
+            manifest["dependencies"],
+        )
         self.assertTrue(manifest["restartRequired"])
         self.assertEqual([], manifest["protectedPaths"])
 
@@ -87,6 +89,9 @@ class ReleasePackageTests(unittest.TestCase):
         expected_paths = [target for _, target in PACKAGER.collect_files(self.root)]
         actual_paths = [entry["path"] for entry in manifest["files"]]
         self.assertEqual(expected_paths, actual_paths)
+        self.assertIn("Documentation/USER_MANUAL.md", actual_paths)
+        self.assertNotIn("Documentation/YAL_Auto_Unicom_Helper_API.md", actual_paths)
+        self.assertNotIn("Documentation/ACCEPTANCE_TEST.md", actual_paths)
 
         with zipfile.ZipFile(zip_path, "r") as archive:
             self.assertEqual(
@@ -115,6 +120,23 @@ class ReleasePackageTests(unittest.TestCase):
                 PACKAGER.verify_release_package(
                     zip_path, json_manifest_path, "beta", "0.1.0b1"
                 )
+
+    def test_verifier_rejects_changed_platform_or_dependency(self) -> None:
+        for key, value in (
+            ("supportedPlatforms", ["linux-x64"]),
+            ("dependencies", [{"packageId": "wahltho.yal", "minimumVersion": "4.7"}]),
+        ):
+            with self.subTest(key=key):
+                zip_path, _, json_manifest_path, _ = self.build()
+                manifest = json.loads(json_manifest_path.read_text(encoding="utf-8"))
+                manifest[key] = value
+                json_manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+                with contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        PACKAGER.verify_release_package(
+                            zip_path, json_manifest_path, "beta", "0.1.0b1"
+                        )
 
     def test_stable_channel_requires_stable_version(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):

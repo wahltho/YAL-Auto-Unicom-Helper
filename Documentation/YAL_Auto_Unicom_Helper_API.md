@@ -1,5 +1,7 @@
 # YAL Auto-Unicom Helper API v3
 
+YAL 4.8b1 or newer is required for discovery of this standalone provider.
+
 ## Scope
 
 YAL owns message generation, phase logic, phraseology and telephony. YAL
@@ -92,6 +94,18 @@ Altitude online state and the selected transmit COM being tuned exactly to
 path and subsequently found in visible active-frequency history. A
 `COMPOSER_AMBIGUOUS` failure before submit is retried internally exactly once
 after 500 ms with the same request. Post-submit uncertainty is never retried.
+
+The helper marks the Altitude composer as owned before its first write. While
+that ownership is active, `transport_state` is `BUSY` and later mailbox
+requests wait. After `AUTO_UNICOM_COMPOSER_STALE_MS` (default 15000 ms, allowed
+range 5000-300000 ms), the helper may clear an unchanged exact owned draft or a
+partial prefix left before the complete write was verified. It reads the value
+twice and requires the composer not to have keyboard focus. Empty, changing,
+focused and foreign/manual content is not cleared. A complete draft modified by
+the pilot is foreign content. This cleanup does not retry the old request,
+including after any path on which `SEND` may have been invoked. The timeout is
+reloadable through `Reload Config`; no API version change is required because
+the v3 mailbox contract is unchanged.
 
 ## Voice
 

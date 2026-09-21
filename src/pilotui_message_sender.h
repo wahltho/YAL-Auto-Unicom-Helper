@@ -1,11 +1,35 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <string>
 
 namespace pilotui_message {
 
 constexpr int kComposerAmbiguousRetryDelayMs = 500;
+
+enum class ComposerOwnershipMatch {
+    Empty,
+    Exact,
+    Prefix,
+    Foreign,
+};
+
+class ComposerOwnershipTracker {
+public:
+    void beginWrite(std::string expectedText, std::int64_t startedAtMs);
+    void markComposed();
+    void clear();
+    bool active() const;
+    bool recoveryDue(std::int64_t nowMs, int staleMs) const;
+    ComposerOwnershipMatch classify(const std::string& currentText) const;
+
+private:
+    std::string expectedText_;
+    std::int64_t startedAtMs_ = 0;
+    bool active_ = false;
+    bool composed_ = false;
+};
 
 enum class Status {
     SubmittedVisible,
@@ -55,7 +79,25 @@ struct DiscoveryResult {
     bool composerEmpty = false;
 };
 
+enum class RecoveryStatus {
+    None,
+    Cleared,
+    ComposerEmpty,
+    ForeignPreserved,
+    Deferred,
+    Failed,
+    Unsupported,
+};
+
+struct RecoveryResult {
+    RecoveryStatus status = RecoveryStatus::None;
+    std::string detail;
+};
+
 DiscoveryResult discoverActiveFrequencyControls(const Options& options, const Callbacks& callbacks);
 Result submitActiveFrequencyMessage(const Options& options, const Callbacks& callbacks);
+bool hasOwnedComposerDraft();
+bool ownedComposerRecoveryDue(int staleMs);
+RecoveryResult recoverOwnedComposerDraft(const Options& options, const Callbacks& callbacks);
 
 } // namespace pilotui_message

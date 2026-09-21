@@ -14,6 +14,7 @@ struct HelperConfig {
     std::string autoUnicomMessageFieldName = "Message";
     std::string autoUnicomSendButtonText = "SEND";
     int autoUnicomConfirmTimeoutMs = 5000;
+    int autoUnicomComposerStaleMs = 15000;
     int autoUnicomGateMaxAgeMs = 2500;
     int autoUnicomFinalGateTimeoutMs = 2500;
     int uiaRetryMs = 100;

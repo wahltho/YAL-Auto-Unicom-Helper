@@ -16,6 +16,13 @@
 9. Configure and test radio routing only after all previous cases pass. Verify
    RX activity delays PTT and that changing frequency or going offline prevents
    transmission.
+10. In a controlled offline test, interrupt the Helper while it owns a complete
+    composer draft and leave Altitude running. Re-enable the Helper, wait longer
+    than `AUTO_UNICOM_COMPOSER_STALE_MS`, and require
+    `STALE_OWNED_COMPOSER_CLEARED` before the next request starts.
+11. Repeat with manually entered or keyboard-focused composer text and require
+    that the Helper preserves it. A post-`SEND` uncertain result must remain
+    terminal and must not cause the old sequence to be submitted again.
 
 Never repeat a request whose terminal result is `UNCERTAIN_AFTER_SUBMIT` or
 whose voice result is `UNCERTAIN_AFTER_PTT`.

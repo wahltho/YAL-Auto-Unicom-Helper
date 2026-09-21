@@ -23,17 +23,22 @@ SUPPORTED_PRODUCTS = (
     "zibo-737ng",
     "levelup-737ng",
 )
+SUPPORTED_PLATFORMS = ("win-x64",)
+DEPENDENCIES = (
+    {
+        "packageId": "wahltho.yal",
+        "minimumVersion": "4.8b1",
+    },
+)
 PROTECTED_PATHS: tuple[str, ...] = ()
 
 PACKAGE_MAP = (
     ("deploy/YAL_AutoUnicomHelper/64/win.xpl", "64/win.xpl"),
     ("deploy/YAL_AutoUnicomHelper/resources/auto_unicom_chime.wav",
      "resources/auto_unicom_chime.wav"),
-    ("Documentation/YAL_Auto_Unicom_Helper_API.md",
-     "Documentation/YAL_Auto_Unicom_Helper_API.md"),
+    ("Documentation/USER_MANUAL.md", "Documentation/USER_MANUAL.md"),
     ("Documentation/Auto-UNICOM-Voice-Setup-Guide.md",
      "Documentation/Auto-UNICOM-Voice-Setup-Guide.md"),
-    ("Documentation/ACCEPTANCE_TEST.md", "Documentation/ACCEPTANCE_TEST.md"),
     ("INSTALL.md", "INSTALL.md"),
     ("LICENSE", "LICENSE"),
     ("README.md", "README.md"),
@@ -172,6 +177,8 @@ def verify_release_package(zip_path: Path, json_manifest_path: Path, channel: st
         "installScope": INSTALL_SCOPE,
         "targetPath": TARGET_PATH,
         "supportedProducts": list(SUPPORTED_PRODUCTS),
+        "supportedPlatforms": list(SUPPORTED_PLATFORMS),
+        "dependencies": list(DEPENDENCIES),
         "restartRequired": True,
         "protectedPaths": list(PROTECTED_PATHS),
     }
@@ -279,6 +286,8 @@ def build_release_assets(root: Path, output_dir: Path, channel: str, version: st
         "installScope": INSTALL_SCOPE,
         "targetPath": TARGET_PATH,
         "supportedProducts": list(SUPPORTED_PRODUCTS),
+        "supportedPlatforms": list(SUPPORTED_PLATFORMS),
+        "dependencies": list(DEPENDENCIES),
         "restartRequired": True,
         "protectedPaths": list(PROTECTED_PATHS),
         "archive": {

@@ -39,11 +39,12 @@ constexpr const char* kPluginName = "YAL_autounicomhelper";
 constexpr const char* kPluginSignature = "yal.autounicomhelper";
 constexpr const char* kPluginDescription =
     "Auto-Unicom transport helper for YAL and IVAO Altitude v0.1.0";
-constexpr const char* kPluginVersion = "0.1.0";
+constexpr const char* kPluginVersion = "0.1.0b1";
 constexpr const char* kAltitudePluginSignature = "aero.ivao.altitude";
 constexpr const char* kDataRefPrefix = "wahltho/autounicom/";
 constexpr float kFlightLoopIntervalSec = 0.05f;
 constexpr int kVoiceStatusFreshMs = 250;
+constexpr int kComposerRecoveryRetryMs = 5000;
 constexpr int kFrequencyMinKhz = 100000;
 constexpr int kFrequencyMaxKhz = 200000;
 
@@ -65,6 +66,7 @@ auto_unicom::Mailbox g_mailbox;
 std::thread g_worker;
 std::atomic<bool> g_workerRunning{false};
 std::atomic<bool> g_workerStop{false};
+std::atomic<long long> g_composerRecoveryRetryAfterMs{0};
 
 std::mutex g_gateMutex;
 std::condition_variable g_gateCv;
@@ -410,7 +412,8 @@ void updateGateState() {
         snapshot.activeCom);
     sampleVoiceStatus(snapshot.activeCom);
     snapshot.unicomFrequencyKhz = g_config.autoUnicomFrequencyKhz;
-    snapshot.busy = g_mailbox.busy() || g_workerRunning.load();
+    snapshot.busy = g_mailbox.busy() || g_workerRunning.load() ||
+        pilotui_message::hasOwnedComposerDraft();
     snapshot.ageMs = 0;
     snapshot.maxAgeMs = g_config.autoUnicomGateMaxAgeMs;
 
@@ -627,6 +630,45 @@ void autoUnicomWorker(auto_unicom::Request request, HelperConfig config) {
     }
 }
 
+void composerRecoveryWorker(HelperConfig config) {
+    pilotui_message::Options options{};
+    options.windowTitle = config.altitudeWindowTitle;
+    options.composerName = config.autoUnicomMessageFieldName;
+    options.sendButtonName = config.autoUnicomSendButtonText;
+    options.pollMs = config.uiaRetryMs;
+    options.debug = config.debugUia;
+
+    pilotui_message::Callbacks callbacks{};
+    callbacks.log = [](const std::string& line) { logLine(line); };
+    callbacks.shouldStop = []() { return g_workerStop.load() || !g_pluginEnabled.load(); };
+
+    pilotui_message::RecoveryResult result{};
+    try {
+        result = pilotui_message::recoverOwnedComposerDraft(options, callbacks);
+    } catch (const std::exception& ex) {
+        result = {pilotui_message::RecoveryStatus::Failed,
+            std::string("RECOVERY_EXCEPTION:") + ex.what()};
+    } catch (...) {
+        result = {pilotui_message::RecoveryStatus::Failed, "RECOVERY_EXCEPTION"};
+    }
+    logLine("Auto UNICOM composer recovery: " + result.detail);
+    g_composerRecoveryRetryAfterMs.store(steadyNowMs() + kComposerRecoveryRetryMs);
+    g_workerRunning.store(false);
+}
+
+void startComposerRecovery() {
+    if (g_workerRunning.load()) {
+        return;
+    }
+    if (g_worker.joinable()) {
+        g_worker.join();
+    }
+    g_workerStop.store(false);
+    g_workerRunning.store(true);
+    logLine("Auto UNICOM composer recovery: starting");
+    g_worker = std::thread(composerRecoveryWorker, g_config);
+}
+
 void discoveryWorker(HelperConfig config) {
     pilotui_message::Options options{};
     options.windowTitle = config.altitudeWindowTitle;
@@ -671,7 +713,8 @@ void voiceTestWorker(HelperConfig config) {
 
 template <typename Function>
 bool startWorker(const char* label, Function function) {
-    if (g_workerRunning.load() || g_mailbox.busy()) {
+    if (g_workerRunning.load() || g_mailbox.busy() ||
+        pilotui_message::hasOwnedComposerDraft()) {
         logLine(std::string(label) + ": busy");
         return false;
     }
@@ -691,6 +734,14 @@ void processPendingRequest() {
     if (g_worker.joinable()) {
         g_worker.join();
     }
+    if (pilotui_message::hasOwnedComposerDraft()) {
+        if (pilotui_message::ownedComposerRecoveryDue(g_config.autoUnicomComposerStaleMs) &&
+            steadyNowMs() >= g_composerRecoveryRetryAfterMs.load()) {
+            startComposerRecovery();
+        }
+        return;
+    }
+    g_composerRecoveryRetryAfterMs.store(0);
     auto request = g_mailbox.takePending();
     if (!request) {
         return;

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cctype>
 #include <cwctype>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <unordered_set>
@@ -20,7 +21,86 @@
 
 namespace pilotui_message {
 
+void ComposerOwnershipTracker::beginWrite(
+    std::string expectedText,
+    std::int64_t startedAtMs
+) {
+    expectedText_ = std::move(expectedText);
+    startedAtMs_ = startedAtMs;
+    active_ = !expectedText_.empty();
+    composed_ = false;
+}
+
+void ComposerOwnershipTracker::markComposed() {
+    if (active_) {
+        composed_ = true;
+    }
+}
+
+void ComposerOwnershipTracker::clear() {
+    expectedText_.clear();
+    startedAtMs_ = 0;
+    active_ = false;
+    composed_ = false;
+}
+
+bool ComposerOwnershipTracker::active() const {
+    return active_;
+}
+
+bool ComposerOwnershipTracker::recoveryDue(std::int64_t nowMs, int staleMs) const {
+    return active_ && nowMs >= startedAtMs_ && nowMs - startedAtMs_ >= staleMs;
+}
+
+ComposerOwnershipMatch ComposerOwnershipTracker::classify(
+    const std::string& currentText
+) const {
+    if (currentText.empty()) {
+        return ComposerOwnershipMatch::Empty;
+    }
+    if (!active_) {
+        return ComposerOwnershipMatch::Foreign;
+    }
+    if (currentText == expectedText_) {
+        return ComposerOwnershipMatch::Exact;
+    }
+    if (!composed_ && currentText.size() < expectedText_.size() &&
+        expectedText_.compare(0, currentText.size(), currentText) == 0) {
+        return ComposerOwnershipMatch::Prefix;
+    }
+    return ComposerOwnershipMatch::Foreign;
+}
+
 namespace {
+
+std::mutex g_composerOwnershipMutex;
+ComposerOwnershipTracker g_composerOwnership;
+
+std::int64_t steadyNowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+}
+
+void beginComposerOwnership(const std::string& expectedText) {
+    std::lock_guard<std::mutex> lock(g_composerOwnershipMutex);
+    g_composerOwnership.beginWrite(expectedText, steadyNowMs());
+}
+
+void clearComposerOwnership() {
+    std::lock_guard<std::mutex> lock(g_composerOwnershipMutex);
+    g_composerOwnership.clear();
+}
+
+void markComposerComposed() {
+    std::lock_guard<std::mutex> lock(g_composerOwnershipMutex);
+    g_composerOwnership.markComposed();
+}
+
+ComposerOwnershipMatch classifyComposerOwnership(const std::string& currentText) {
+    std::lock_guard<std::mutex> lock(g_composerOwnershipMutex);
+    return g_composerOwnership.classify(currentText);
+}
 
 void log(const Callbacks& callbacks, const std::string& line) {
     if (callbacks.log) {
@@ -31,8 +111,6 @@ void log(const Callbacks& callbacks, const std::string& line) {
 bool shouldStop(const Callbacks& callbacks) {
     return callbacks.shouldStop && callbacks.shouldStop();
 }
-
-#if IBM
 
 bool waitForComposerRetry(const Callbacks& callbacks, int delayMs) {
     int remainingMs = std::max(0, delayMs);
@@ -46,6 +124,8 @@ bool waitForComposerRetry(const Callbacks& callbacks, int delayMs) {
     }
     return !shouldStop(callbacks);
 }
+
+#if IBM
 
 template <typename T>
 class ComPtr {
@@ -735,10 +815,43 @@ HRESULT setComposerValue(IUIAutomationValuePattern* pattern, const std::wstring&
     return result;
 }
 
-void clearComposerIfOwned(IUIAutomationValuePattern* pattern, const std::wstring& expected) {
+ComposerOwnershipMatch classifyCurrentComposer(const std::wstring& current) {
+    return classifyComposerOwnership(narrow(simplifyWide(current)));
+}
+
+bool clearTrackedComposer(IUIAutomationValuePattern* pattern) {
     std::wstring current;
-    if (currentComposerValue(pattern, current) && simplifyWide(current) == expected) {
-        setComposerValue(pattern, L"");
+    if (!currentComposerValue(pattern, current)) {
+        return false;
+    }
+    const auto match = classifyCurrentComposer(current);
+    if (match == ComposerOwnershipMatch::Empty) {
+        clearComposerOwnership();
+        return true;
+    }
+    if (match == ComposerOwnershipMatch::Foreign) {
+        clearComposerOwnership();
+        return false;
+    }
+    if (FAILED(setComposerValue(pattern, L""))) {
+        return false;
+    }
+    if (!currentComposerValue(pattern, current) || !simplifyWide(current).empty()) {
+        return false;
+    }
+    clearComposerOwnership();
+    return true;
+}
+
+void reconcileComposerOwnership(IUIAutomationValuePattern* pattern) {
+    std::wstring current;
+    if (!currentComposerValue(pattern, current)) {
+        return;
+    }
+    const auto match = classifyCurrentComposer(current);
+    if (match == ComposerOwnershipMatch::Empty ||
+        match == ComposerOwnershipMatch::Foreign) {
+        clearComposerOwnership();
     }
 }
 
@@ -812,37 +925,45 @@ Result submitWindows(const Options& options, const Callbacks& callbacks) {
     if (!simplifyWide(current).empty()) {
         return {Status::FailedBeforeSubmit, "COMPOSER_NOT_EMPTY"};
     }
+    clearComposerOwnership();
     if (shouldStop(callbacks)) {
         return {Status::Cancelled, "CANCELLED_BEFORE_COMPOSE"};
     }
+    beginComposerOwnership(narrow(message));
     if (FAILED(setComposerValue(composerPattern.get(), message))) {
+        clearComposerOwnership();
         return {Status::FailedBeforeSubmit, "COMPOSER_WRITE_FAILED"};
     }
     if (!currentComposerValue(composerPattern.get(), current) || simplifyWide(current) != message) {
-        return {Status::UncertainAfterSubmit, "COMPOSER_RACE_AFTER_WRITE", baseline.matches, baseline.matches};
+        reconcileComposerOwnership(composerPattern.get());
+        return {Status::FailedBeforeSubmit, "COMPOSER_RACE_AFTER_WRITE", baseline.matches, baseline.matches};
     }
+    markComposerComposed();
 
     std::string gateDetail;
     if (!callbacks.finalGate || !callbacks.finalGate(gateDetail)) {
-        clearComposerIfOwned(composerPattern.get(), message);
+        clearTrackedComposer(composerPattern.get());
         return {Status::RejectedByGate, gateDetail.empty() ? "FINAL_GATE_REJECTED" : gateDetail,
             baseline.matches, baseline.matches};
     }
     if (shouldStop(callbacks)) {
-        clearComposerIfOwned(composerPattern.get(), message);
+        clearTrackedComposer(composerPattern.get());
         return {Status::Cancelled, "CANCELLED_BEFORE_SUBMIT", baseline.matches, baseline.matches};
     }
 
     if (!currentComposerValue(composerPattern.get(), current) || simplifyWide(current) != message) {
-        return {Status::UncertainAfterSubmit, "COMPOSER_RACE_BEFORE_SUBMIT", baseline.matches, baseline.matches};
+        clearTrackedComposer(composerPattern.get());
+        return {Status::FailedBeforeSubmit, "COMPOSER_RACE_BEFORE_SUBMIT", baseline.matches, baseline.matches};
     }
     BOOL enabled = FALSE;
     if (FAILED(sendButton->get_CurrentIsEnabled(&enabled)) || !enabled) {
-        return {Status::UncertainAfterSubmit, "SEND_BUTTON_DISABLED_AFTER_COMPOSE", baseline.matches, baseline.matches};
+        clearTrackedComposer(composerPattern.get());
+        return {Status::FailedBeforeSubmit, "SEND_BUTTON_DISABLED_AFTER_COMPOSE", baseline.matches, baseline.matches};
     }
 
     HRESULT invokeHr = invokePattern->Invoke();
     if (FAILED(invokeHr)) {
+        reconcileComposerOwnership(composerPattern.get());
         return {Status::UncertainAfterSubmit, "SEND_INVOKE_INDETERMINATE", baseline.matches, baseline.matches};
     }
     log(callbacks, "Auto UNICOM UIA: SEND invoked once; awaiting visible history");
@@ -853,19 +974,133 @@ Result submitWindows(const Options& options, const Callbacks& callbacks) {
     HistoryScan latest = baseline;
     while (std::chrono::steady_clock::now() < deadline) {
         if (shouldStop(callbacks)) {
+            reconcileComposerOwnership(composerPattern.get());
             return {Status::UncertainAfterSubmit, "STOPPED_AFTER_SEND", baseline.matches, latest.matches};
         }
         latest = scanHistory(automation.get(), root.get(), composer.get(), composerRect, message);
         if (latest.readable && latest.matches > baseline.matches) {
             log(callbacks, "Auto UNICOM UIA: visible history confirmed baseline_matches=" +
                 std::to_string(baseline.matches) + " final_matches=" + std::to_string(latest.matches));
+            clearTrackedComposer(composerPattern.get());
             return {Status::SubmittedVisible, "SUBMITTED_VISIBLE", baseline.matches, latest.matches};
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(pollMs));
     }
     log(callbacks, "Auto UNICOM UIA: visible history timeout baseline_matches=" +
         std::to_string(baseline.matches) + " final_matches=" + std::to_string(latest.matches));
+    reconcileComposerOwnership(composerPattern.get());
     return {Status::UncertainAfterSubmit, "VISIBLE_HISTORY_TIMEOUT", baseline.matches, latest.matches};
+}
+
+RecoveryResult recoverWindows(const Options& options, const Callbacks& callbacks) {
+    if (shouldStop(callbacks)) {
+        return {RecoveryStatus::Deferred, "RECOVERY_CANCELLED"};
+    }
+
+    HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const bool uninitialize = SUCCEEDED(initHr);
+    if (FAILED(initHr) && initHr != RPC_E_CHANGED_MODE) {
+        return {RecoveryStatus::Failed, "COM_INITIALIZE_FAILED"};
+    }
+    struct CoGuard {
+        bool active = false;
+        ~CoGuard() { if (active) CoUninitialize(); }
+    } coGuard{uninitialize};
+
+    IUIAutomation* rawAutomation = nullptr;
+    HRESULT automationHr = CoCreateInstance(
+        CLSID_CUIAutomation,
+        nullptr,
+        CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&rawAutomation)
+    );
+    ComPtr<IUIAutomation> automation(rawAutomation);
+    if (FAILED(automationHr) || !automation) {
+        return {RecoveryStatus::Failed, "UIA_INITIALIZE_FAILED"};
+    }
+
+    HWND window = nullptr;
+    std::string error;
+    if (!findUniqueWindow(widen(options.windowTitle), window, error)) {
+        return {RecoveryStatus::Deferred, std::move(error)};
+    }
+    ComPtr<IUIAutomationElement> root;
+    if (FAILED(automation->ElementFromHandle(window, root.put())) || !root) {
+        return {RecoveryStatus::Deferred, "PILOTUI_ROOT_FAILED"};
+    }
+
+    ComPtr<IUIAutomationElement> composer;
+    ComPtr<IUIAutomationValuePattern> composerPattern;
+    RECT composerRect{};
+    if (!findComposer(
+            automation.get(), root.get(), widen(options.composerName),
+            composer, composerPattern, composerRect, error)) {
+        return {RecoveryStatus::Deferred, std::move(error)};
+    }
+
+    std::wstring firstValue;
+    if (!currentComposerValue(composerPattern.get(), firstValue)) {
+        return {RecoveryStatus::Deferred, "COMPOSER_READ_FAILED"};
+    }
+    const auto firstMatch = classifyCurrentComposer(firstValue);
+    if (firstMatch == ComposerOwnershipMatch::Empty) {
+        clearComposerOwnership();
+        return {RecoveryStatus::ComposerEmpty, "OWNED_COMPOSER_ALREADY_EMPTY"};
+    }
+    if (firstMatch == ComposerOwnershipMatch::Foreign) {
+        clearComposerOwnership();
+        return {RecoveryStatus::ForeignPreserved, "FOREIGN_COMPOSER_PRESERVED"};
+    }
+
+    BOOL focused = FALSE;
+    if (FAILED(composer->get_CurrentHasKeyboardFocus(&focused)) || focused) {
+        return {RecoveryStatus::Deferred,
+            focused ? "OWNED_COMPOSER_FOCUSED" : "COMPOSER_FOCUS_UNKNOWN"};
+    }
+
+    const int settleMs = std::max(50, options.pollMs);
+    if (!waitForComposerRetry(callbacks, settleMs)) {
+        return {RecoveryStatus::Deferred, "RECOVERY_CANCELLED"};
+    }
+
+    std::wstring secondValue;
+    if (!currentComposerValue(composerPattern.get(), secondValue)) {
+        return {RecoveryStatus::Deferred, "COMPOSER_READ_FAILED"};
+    }
+    if (simplifyWide(secondValue) != simplifyWide(firstValue)) {
+        return {RecoveryStatus::Deferred, "OWNED_COMPOSER_CHANGING"};
+    }
+    const auto secondMatch = classifyCurrentComposer(secondValue);
+    if (secondMatch != ComposerOwnershipMatch::Exact &&
+        secondMatch != ComposerOwnershipMatch::Prefix) {
+        if (secondMatch == ComposerOwnershipMatch::Empty) {
+            clearComposerOwnership();
+            return {RecoveryStatus::ComposerEmpty, "OWNED_COMPOSER_ALREADY_EMPTY"};
+        }
+        clearComposerOwnership();
+        return {RecoveryStatus::ForeignPreserved, "FOREIGN_COMPOSER_PRESERVED"};
+    }
+    focused = FALSE;
+    if (FAILED(composer->get_CurrentHasKeyboardFocus(&focused)) || focused) {
+        return {RecoveryStatus::Deferred,
+            focused ? "OWNED_COMPOSER_FOCUSED" : "COMPOSER_FOCUS_UNKNOWN"};
+    }
+
+    if (FAILED(setComposerValue(composerPattern.get(), L""))) {
+        return {RecoveryStatus::Failed, "OWNED_COMPOSER_CLEAR_FAILED"};
+    }
+    std::wstring clearedValue;
+    if (!currentComposerValue(composerPattern.get(), clearedValue) ||
+        !simplifyWide(clearedValue).empty()) {
+        return {RecoveryStatus::Failed, "OWNED_COMPOSER_CLEAR_UNCONFIRMED"};
+    }
+    clearComposerOwnership();
+    return {
+        RecoveryStatus::Cleared,
+        secondMatch == ComposerOwnershipMatch::Exact
+            ? "STALE_OWNED_COMPOSER_CLEARED"
+            : "STALE_PARTIAL_COMPOSER_CLEARED"
+    };
 }
 
 DiscoveryResult discoverWindows(const Options& options, const Callbacks& callbacks) {
@@ -1003,6 +1238,32 @@ Result submitActiveFrequencyMessage(const Options& options, const Callbacks& cal
 #else
     (void)callbacks;
     return {Status::Unsupported, "PLATFORM_UNSUPPORTED"};
+#endif
+}
+
+bool hasOwnedComposerDraft() {
+    std::lock_guard<std::mutex> lock(g_composerOwnershipMutex);
+    return g_composerOwnership.active();
+}
+
+bool ownedComposerRecoveryDue(int staleMs) {
+    std::lock_guard<std::mutex> lock(g_composerOwnershipMutex);
+    return g_composerOwnership.recoveryDue(steadyNowMs(), std::max(0, staleMs));
+}
+
+RecoveryResult recoverOwnedComposerDraft(
+    const Options& options,
+    const Callbacks& callbacks
+) {
+    if (!hasOwnedComposerDraft()) {
+        return {RecoveryStatus::None, "NO_OWNED_COMPOSER"};
+    }
+#if IBM
+    return recoverWindows(options, callbacks);
+#else
+    (void)options;
+    (void)callbacks;
+    return {RecoveryStatus::Unsupported, "PLATFORM_UNSUPPORTED"};
 #endif
 }
 

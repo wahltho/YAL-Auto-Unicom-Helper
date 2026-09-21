@@ -12,6 +12,8 @@ constexpr int kFrequencyMinKhz = 100000;
 constexpr int kFrequencyMaxKhz = 200000;
 constexpr int kConfirmTimeoutMinMs = 1000;
 constexpr int kConfirmTimeoutMaxMs = 30000;
+constexpr int kComposerStaleMinMs = 5000;
+constexpr int kComposerStaleMaxMs = 300000;
 constexpr int kGateMaxAgeMinMs = 1000;
 constexpr int kGateMaxAgeMaxMs = 5000;
 constexpr int kFinalGateTimeoutMinMs = 1000;
@@ -105,6 +107,8 @@ void normalizeConfig(HelperConfig& config) {
     }
     config.autoUnicomConfirmTimeoutMs = clampValue(
         config.autoUnicomConfirmTimeoutMs, kConfirmTimeoutMinMs, kConfirmTimeoutMaxMs);
+    config.autoUnicomComposerStaleMs = clampValue(
+        config.autoUnicomComposerStaleMs, kComposerStaleMinMs, kComposerStaleMaxMs);
     config.autoUnicomGateMaxAgeMs = clampValue(
         config.autoUnicomGateMaxAgeMs, kGateMaxAgeMinMs, kGateMaxAgeMaxMs);
     config.autoUnicomFinalGateTimeoutMs = clampValue(
@@ -202,6 +206,8 @@ ConfigLoadResult loadHelperConfigFile(
                 candidate.autoUnicomSendButtonText = value;
             } else if (key == "AUTO_UNICOM_CONFIRM_TIMEOUT_MS") {
                 candidate.autoUnicomConfirmTimeoutMs = parseInt(value);
+            } else if (key == "AUTO_UNICOM_COMPOSER_STALE_MS") {
+                candidate.autoUnicomComposerStaleMs = parseInt(value);
             } else if (key == "AUTO_UNICOM_GATE_MAX_AGE_MS") {
                 candidate.autoUnicomGateMaxAgeMs = parseInt(value);
             } else if (key == "AUTO_UNICOM_FINAL_GATE_TIMEOUT_MS") {
@@ -303,6 +309,7 @@ bool saveHelperConfigFile(
     out << "AUTO_UNICOM_MESSAGE_FIELD_NAME=" << config.autoUnicomMessageFieldName << "\n";
     out << "AUTO_UNICOM_SEND_BUTTON_TEXT=" << config.autoUnicomSendButtonText << "\n";
     out << "AUTO_UNICOM_CONFIRM_TIMEOUT_MS=" << config.autoUnicomConfirmTimeoutMs << "\n";
+    out << "AUTO_UNICOM_COMPOSER_STALE_MS=" << config.autoUnicomComposerStaleMs << "\n";
     out << "AUTO_UNICOM_GATE_MAX_AGE_MS=" << config.autoUnicomGateMaxAgeMs << "\n";
     out << "AUTO_UNICOM_FINAL_GATE_TIMEOUT_MS=" << config.autoUnicomFinalGateTimeoutMs << "\n";
     out << "UIA_RETRY_MS=" << config.uiaRetryMs << "\n";
@@ -356,6 +363,7 @@ std::vector<std::string> diffHelperConfig(
     CONFIG_DIFF(autoUnicomMessageFieldName, "AUTO_UNICOM_MESSAGE_FIELD_NAME");
     CONFIG_DIFF(autoUnicomSendButtonText, "AUTO_UNICOM_SEND_BUTTON_TEXT");
     CONFIG_DIFF(autoUnicomConfirmTimeoutMs, "AUTO_UNICOM_CONFIRM_TIMEOUT_MS");
+    CONFIG_DIFF(autoUnicomComposerStaleMs, "AUTO_UNICOM_COMPOSER_STALE_MS");
     CONFIG_DIFF(autoUnicomGateMaxAgeMs, "AUTO_UNICOM_GATE_MAX_AGE_MS");
     CONFIG_DIFF(autoUnicomFinalGateTimeoutMs, "AUTO_UNICOM_FINAL_GATE_TIMEOUT_MS");
     CONFIG_DIFF(uiaRetryMs, "UIA_RETRY_MS");
