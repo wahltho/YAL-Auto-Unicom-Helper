@@ -39,7 +39,7 @@ constexpr const char* kPluginName = "YAL_autounicomhelper";
 constexpr const char* kPluginSignature = "yal.autounicomhelper";
 constexpr const char* kPluginDescription =
     "Auto-Unicom transport helper for YAL and IVAO Altitude v0.1.0";
-constexpr const char* kPluginVersion = "0.1.0b1";
+constexpr const char* kPluginVersion = "0.1.0b2";
 constexpr const char* kAltitudePluginSignature = "aero.ivao.altitude";
 constexpr const char* kDataRefPrefix = "wahltho/autounicom/";
 constexpr float kFlightLoopIntervalSec = 0.05f;

@@ -9,7 +9,7 @@ documented in the
 
 - X-Plane 12 on Windows
 - IVAO Altitude
-- [YAL 4.8b1 or newer](https://github.com/wahltho/YAL/releases); earlier YAL
+- [YAL 4.8b2 or newer](https://github.com/wahltho/YAL/releases); earlier YAL
   versions do not support the standalone Helper provider
 - the Zibo Mod 737-800, or a compatible LevelUp 737NG variant supported by YAL
 - X-Plane and Altitude running in the same Windows user session

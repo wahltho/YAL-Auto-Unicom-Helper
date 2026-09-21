@@ -36,11 +36,11 @@ class ReleasePackageTests(unittest.TestCase):
         (self.root / "Documentation").mkdir()
 
         (self.root / "src/YAL_autounicomhelper.cpp").write_text(
-            'constexpr const char* kPluginVersion = "0.1.0b1";\n',
+            'constexpr const char* kPluginVersion = "0.1.0b2";\n',
             encoding="utf-8",
         )
         (self.root / "README.md").write_text(
-            "Current plugin version: 0.1.0b1\n",
+            "Current plugin version: 0.1.0b2\n",
             encoding="utf-8",
         )
         (self.root / "INSTALL.md").write_text("install\n", encoding="utf-8")
@@ -59,7 +59,7 @@ class ReleasePackageTests(unittest.TestCase):
             "AUTO_UNICOM_MODE=off\n", encoding="utf-8"
         )
 
-    def build(self, channel: str = "beta", version: str = "0.1.0b1"):
+    def build(self, channel: str = "beta", version: str = "0.1.0b2"):
         return PACKAGER.build_release_assets(self.root, self.output, channel, version)
 
     def test_assets_match_manifest_and_checksums(self) -> None:
@@ -67,14 +67,14 @@ class ReleasePackageTests(unittest.TestCase):
         manifest = json.loads(json_manifest_path.read_text(encoding="utf-8"))
 
         self.assertEqual("wahltho.yal-autounicomhelper", manifest["packageId"])
-        self.assertEqual("0.1.0b1", manifest["packageVersion"])
-        self.assertEqual("r0.1.0b1", manifest["releaseTag"])
+        self.assertEqual("0.1.0b2", manifest["packageVersion"])
+        self.assertEqual("r0.1.0b2", manifest["releaseTag"])
         self.assertEqual("beta", manifest["channel"])
         self.assertEqual("Resources/plugins/YAL_AutoUnicomHelper", manifest["targetPath"])
         self.assertEqual(["zibo-737ng", "levelup-737ng"], manifest["supportedProducts"])
         self.assertEqual(["win-x64"], manifest["supportedPlatforms"])
         self.assertEqual(
-            [{"packageId": "wahltho.yal", "minimumVersion": "4.8b1"}],
+            [{"packageId": "wahltho.yal", "minimumVersion": "4.8b2"}],
             manifest["dependencies"],
         )
         self.assertTrue(manifest["restartRequired"])
@@ -118,7 +118,7 @@ class ReleasePackageTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 PACKAGER.verify_release_package(
-                    zip_path, json_manifest_path, "beta", "0.1.0b1"
+                    zip_path, json_manifest_path, "beta", "0.1.0b2"
                 )
 
     def test_verifier_rejects_changed_platform_or_dependency(self) -> None:
@@ -135,13 +135,13 @@ class ReleasePackageTests(unittest.TestCase):
                 with contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit):
                         PACKAGER.verify_release_package(
-                            zip_path, json_manifest_path, "beta", "0.1.0b1"
+                            zip_path, json_manifest_path, "beta", "0.1.0b2"
                         )
 
     def test_stable_channel_requires_stable_version(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
-                PACKAGER.validate_versions(self.root, "stable", "0.1.0b1")
+                PACKAGER.validate_versions(self.root, "stable", "0.1.0b2")
 
 
 if __name__ == "__main__":

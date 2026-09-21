@@ -6,7 +6,7 @@ This guide configures a safe audio path for sending YAL Auto-UNICOM messages
 as both text and speech through IVAO Altitude. The normal headset microphone
 remains available for manual radio communication.
 
-YAL 4.8b1 or newer is required. Earlier YAL versions do not support the
+YAL 4.8b2 or newer is required. Earlier YAL versions do not support the
 standalone YAL Auto-Unicom Helper provider.
 
 This is the detailed audio companion to `USER_MANUAL.md`. Complete the YAL and

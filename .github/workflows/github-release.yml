@@ -11,7 +11,7 @@ on:
           - beta
           - stable
       version:
-        description: Version to release, for example 0.1.0b1 or 0.1.0
+        description: Version to release, for example 0.1.0b2 or 0.1.0
         required: true
         type: string
       draft:
@@ -70,7 +70,7 @@ jobs:
               printf 'YAL Auto-Unicom Helper %s\n\n' "$VERSION"
               printf 'Channel: %s\n' "$CHANNEL"
               printf 'Commit: %s\n\n' "$GITHUB_SHA"
-              printf '%s\n' 'Requires YAL 4.8b1 or newer.'
+              printf '%s\n' 'Requires YAL 4.8b2 or newer.'
               printf '%s\n\n' 'Supported platform: Windows x64.'
               printf '%s\n' 'This GitHub release contains:'
               printf '%s\n' '- full-install ZIP package'

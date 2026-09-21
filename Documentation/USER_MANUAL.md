@@ -30,7 +30,7 @@ The required environment is:
 
 - Windows 10 or Windows 11
 - X-Plane 12
-- YAL 4.8b1 or newer; earlier YAL versions do not support the standalone
+- YAL 4.8b2 or newer; earlier YAL versions do not support the standalone
   Helper provider
 - the Zibo Mod 737-800, or a compatible LevelUp 737NG variant supported by the
   installed YAL release
@@ -67,7 +67,7 @@ message. Automatic voice starts only after visible text submission succeeds.
 
 ## 4. Install YAL
 
-Install YAL 4.8b1 or newer first. Earlier YAL versions do not discover the
+Install YAL 4.8b2 or newer first. Earlier YAL versions do not discover the
 standalone Helper provider and therefore cannot submit requests to this plugin.
 Obtain YAL only from its official project and release pages:
 

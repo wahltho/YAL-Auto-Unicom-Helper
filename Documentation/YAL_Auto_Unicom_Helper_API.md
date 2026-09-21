@@ -1,6 +1,6 @@
 # YAL Auto-Unicom Helper API v3
 
-YAL 4.8b1 or newer is required for discovery of this standalone provider.
+YAL 4.8b2 or newer is required for discovery of this standalone provider.
 
 ## Scope
 

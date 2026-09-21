@@ -11,10 +11,10 @@ IVAO. It does not connect to the IVAO network itself and has no standalone
 message generator. A compatible YAL installation is mandatory; without YAL the
 helper cannot create or deliver Auto-Unicom messages.
 
-**Compatibility requirement:** YAL 4.8b1 or newer is required. Earlier YAL
+**Compatibility requirement:** YAL 4.8b2 or newer is required. Earlier YAL
 versions do not support the standalone YAL Auto-Unicom Helper provider.
 
-Current plugin version: 0.1.0b1
+Current plugin version: 0.1.0b2
 
 ## Required and related projects
 

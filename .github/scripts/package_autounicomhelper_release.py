@@ -27,7 +27,7 @@ SUPPORTED_PLATFORMS = ("win-x64",)
 DEPENDENCIES = (
     {
         "packageId": "wahltho.yal",
-        "minimumVersion": "4.8b1",
+        "minimumVersion": "4.8b2",
     },
 )
 PROTECTED_PATHS: tuple[str, ...] = ()
